@@ -1,0 +1,49 @@
+# Build-and-publish workflow for git-agent.
+#
+# Every push to main builds the Docker image and pushes it to
+# ghcr.io/rdmilly/git-agent with two tags:
+#   - :latest (mutable, what VPS1 pulls)
+#   - :<sha>  (immutable, for pinned rollback)
+#
+# This is the reference implementation for the "Option B" pattern every
+# Millyweb project should follow.  New projects can copy this file as-is
+# after a `find-and-replace git-agent -> <project-slug>`.
+
+name: build-and-publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write  # Required to push to GHCR.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/rdmilly/git-agent:latest
+            ghcr.io/rdmilly/git-agent:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

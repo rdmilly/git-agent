@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.venv/
+venv/
+
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# Runtime state
+repo-cache/
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker / build artifacts
+dist/
+build/
