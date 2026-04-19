@@ -1,0 +1,36 @@
+# git-agent repo config.
+#
+# Read by git-agent itself when it operates on this repo.  Other repos
+# should have their own .pa.yml with values appropriate to them.
+#
+# Keys are stable; add new ones rather than repurposing.
+
+version: 1
+
+# Merge strategy for PRs opened by git-agent.
+# Options: squash, merge, rebase.  Per Git Agent PRD Q1 decision: squash.
+merge_strategy: squash
+
+# Auto-merge on green CI.  Per PRD Q3 decision: yes, for Claude-opened PRs.
+auto_merge_on_green_ci: true
+
+# Name of the required CI check.  Must match a job id in .github/workflows/*.
+required_ci_check: ci
+
+# Branch protection state.  Set to true only after the 1–2 day dogfood window
+# (per PRD Q2 decision).  When false, git_init_repo does not flip protection.
+branch_protection_enabled: false
+
+# Commit type whitelist.  Matches the CommitType enum in app/models/requests.py.
+allowed_commit_types:
+  - feat
+  - fix
+  - refactor
+  - docs
+  - chore
+  - test
+  - perf
+  - ci
+
+# STATUS.md maintenance.  Phase 2 feature; left here for forward-compat.
+status_md_auto_update: false  # flip to true when Phase 2 lands

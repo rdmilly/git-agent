@@ -1,0 +1,41 @@
+# CI workflow for git-agent PRs.
+#
+# Runs on every PR targeting main.  This is the "required status check"
+# that branch protection references once we flip it on.
+#
+# For now we're lint-light — pydantic + fastapi models compile-check,
+# import-check, and a smoke test that app.main imports without raising.
+# Richer testing comes once the service has exercised behavior to assert on.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+
+      - name: Lint
+        run: ruff check app/
+
+      - name: Import check
+        run: |
+          python -c "from app import main; print('main imports OK')"
+          python -c "from app.services import GitOps, GitHubAPI, Haiku; print('services import OK')"
+          python -c "from app.models import CommitRequest, CommitResponse; print('models import OK')"
