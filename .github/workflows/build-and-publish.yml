@@ -1,13 +1,18 @@
 # Build-and-publish workflow for git-agent.
 #
-# Every push to main builds the Docker image and pushes it to
-# ghcr.io/rdmilly/git-agent with two tags:
+# Every push to main builds both the REST backend and the MCP wrapper,
+# and pushes each to GHCR with two tags:
 #   - :latest (mutable, what VPS1 pulls)
 #   - :<sha>  (immutable, for pinned rollback)
 #
-# This is the reference implementation for the "Option B" pattern every
-# Millyweb project should follow.  New projects can copy this file as-is
-# after a `find-and-replace git-agent -> <project-slug>`.
+# Two images are published:
+#   ghcr.io/rdmilly/git-agent      (FastAPI REST backend, Dockerfile)
+#   ghcr.io/rdmilly/git-agent-mcp  (FastMCP wrapper,     Dockerfile.mcp)
+#
+# This matches the helix-cortex + helix-mcp pattern.
+#
+# This workflow is the reference implementation for the "Option B" pattern
+# every Millyweb project should follow.
 
 name: build-and-publish
 
@@ -21,29 +26,46 @@ permissions:
   packages: write  # Required to push to GHCR.
 
 jobs:
-  build:
+  backend:
+    name: Build REST backend → ghcr.io/rdmilly/git-agent
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
         with:
           context: .
+          file: Dockerfile
           push: true
           tags: |
             ghcr.io/rdmilly/git-agent:latest
             ghcr.io/rdmilly/git-agent:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+
+  mcp:
+    name: Build MCP wrapper → ghcr.io/rdmilly/git-agent-mcp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.mcp
+          push: true
+          tags: |
+            ghcr.io/rdmilly/git-agent-mcp:latest
+            ghcr.io/rdmilly/git-agent-mcp:${{ github.sha }}
+          cache-from: type=gha,scope=mcp
+          cache-to: type=gha,scope=mcp,mode=max
