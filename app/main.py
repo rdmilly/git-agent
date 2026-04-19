@@ -286,7 +286,7 @@ async def git_commit(
     intent: str,
     type: str,
     merge_target: str = "main",
-    session_uri: Optional[str] = None,
+    session_uri: str = "",
     dry_run: bool = False,
 ) -> str:
     """Stage, commit, push, and open a PR on a Millyweb repo.
@@ -313,7 +313,7 @@ async def git_commit(
         intent=intent,
         type=CommitType(type),
         merge_target=merge_target,
-        session_uri=session_uri,
+        session_uri=session_uri or None,
         dry_run=dry_run,
     )
     resp = await _handle_commit(req)
@@ -344,7 +344,7 @@ async def git_init_repo(
 @mcp.tool()
 async def git_new_project(
     kb_path: str,
-    repo_slug: Optional[str] = None,
+    repo_slug: str = "",
     private: bool = False,
 ) -> str:
     """Scaffold a new repo from a KB PRD with `type: new-project` frontmatter.
@@ -354,7 +354,7 @@ async def git_new_project(
     defines the code.
     """
     import json
-    req = NewProjectRequest(kb_path=kb_path, repo_slug=repo_slug, private=private)
+    req = NewProjectRequest(kb_path=kb_path, repo_slug=repo_slug or None, private=private)
     resp = await rest_git_new_project(req)
     return json.dumps(resp.model_dump(exclude_none=False), indent=2)
 
