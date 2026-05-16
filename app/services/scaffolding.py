@@ -5,16 +5,11 @@ Generates the standard set of files committed to every new repo:
   - .github/workflows/ci.yml
   - .github/PULL_REQUEST_TEMPLATE.md
 
-Keeps the template logic out of main.py.
+Keeps template logic out of main.py.
 """
 from __future__ import annotations
-
 from pathlib import Path
 
-
-# ---------------------------------------------------------------------------
-# README
-# ---------------------------------------------------------------------------
 
 def render_readme(project_name: str, description: str, github_repo: str) -> str:
     slug = github_repo.split("/")[-1] if "/" in github_repo else github_repo
@@ -27,30 +22,19 @@ def render_readme(project_name: str, description: str, github_repo: str) -> str:
 ```bash
 git clone https://github.com/{github_repo}.git
 cd {slug}
-
-# Python
-pip install -r requirements.txt
-
-# Node
-npm install
 ```
 
 ## Contributing
 
 All changes via PR against `main`. Commit messages follow
 [Conventional Commits](https://www.conventionalcommits.org/).
-This repo uses `git-agent` for automated commits — include a
-`Claude-Session` trailer in any Claude-assisted commits.
+Claude-assisted commits include a `Claude-Session` trailer.
 
 ## License
 
 MIT
 """
 
-
-# ---------------------------------------------------------------------------
-# CI workflow (language-agnostic)
-# ---------------------------------------------------------------------------
 
 CI_WORKFLOW = """\
 name: CI
@@ -85,7 +69,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install & lint (Python)
+      - name: Install + Lint (Python)
         if: steps.detect.outputs.lang == 'python'
         run: |
           pip install -r requirements.txt 2>/dev/null || true
@@ -98,20 +82,15 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install & test (Node)
+      - name: Install + Test (Node)
         if: steps.detect.outputs.lang == 'node'
         run: |
           npm ci 2>/dev/null || npm install 2>/dev/null || true
           npm test 2>/dev/null || true
 
       - name: Done
-        run: echo "CI passed for lang=${{ steps.detect.outputs.lang }}"
+        run: echo "CI passed for ${{ steps.detect.outputs.lang }}"
 """
-
-
-# ---------------------------------------------------------------------------
-# PR template
-# ---------------------------------------------------------------------------
 
 PR_TEMPLATE = """\
 ## Summary
@@ -120,30 +99,22 @@ PR_TEMPLATE = """\
 
 ## Changes
 
-<!-- Bullet list of concrete changes -->
--
+- 
 
 ## Testing
 
 - [ ] Manual smoke test
-- [ ] Automated tests pass (CI green)
+- [ ] CI green
 
 ## Notes
 
-<!-- Edge cases, follow-up work, or anything the reviewer should know -->
+<!-- Edge cases, follow-up work -->
 """
 
 
-# ---------------------------------------------------------------------------
-# Scaffold entry point
-# ---------------------------------------------------------------------------
-
 def write_scaffold(repo_path: Path, project_name: str, description: str,
                    github_repo: str) -> list[str]:
-    """Write standard scaffold files into `repo_path`.
-
-    Returns list of relative paths written.
-    """
+    """Write standard scaffold files into repo_path. Returns list of rel paths."""
     written: list[str] = []
 
     def _write(rel: str, content: str) -> None:
@@ -155,5 +126,4 @@ def write_scaffold(repo_path: Path, project_name: str, description: str,
     _write("README.md", render_readme(project_name, description, github_repo))
     _write(".github/workflows/ci.yml", CI_WORKFLOW)
     _write(".github/PULL_REQUEST_TEMPLATE.md", PR_TEMPLATE)
-
     return written
