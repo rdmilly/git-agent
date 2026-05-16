@@ -284,7 +284,7 @@ async def rest_git_new_project(req: NewProjectRequest) -> NewProjectResponse:
 async def git_commit(
     repo: str,
     intent: str,
-    type: str,
+    commit_type: str,
     merge_target: str = "main",
     session_uri: str = "",
     dry_run: bool = False,
@@ -311,7 +311,7 @@ async def git_commit(
     req = CommitRequest(
         repo=repo,
         intent=intent,
-        type=CommitType(type),
+        type=CommitType(commit_type),
         merge_target=merge_target,
         session_uri=session_uri or None,
         dry_run=dry_run,
