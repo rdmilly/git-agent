@@ -88,7 +88,6 @@ async def lifespan(app: FastAPI):
 
 mcp = FastMCP(
     "git_agent",
-    stateless_http=True,
     instructions=(
         "git-agent owns structured git operations for Millyweb repos. Use git_commit "
         "to stage/commit/push/open-PR in one call; the commit message is generated "
