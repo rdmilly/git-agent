@@ -1,18 +1,19 @@
+"""Patch FastMCP base.py to fix issubclass bug with Python 3.12 annotations."""
 import inspect
 import mcp.server.fastmcp.tools.base as b
 
-lines = open(b.__file__).readlines()
-patched = []
-needs_import = True
-for line in lines:
-    if 'issubclass(param.annotation, Context)' in line and 'inspect.isclass' not in line:
-        if needs_import:
-            patched.append('import inspect\n')
-            needs_import = False
-        line = line.replace(
-            'issubclass(param.annotation, Context)',
-            'inspect.isclass(param.annotation) and issubclass(param.annotation, Context)'
-        )
-    patched.append(line)
-open(b.__file__, 'w').writelines(patched)
-print('FastMCP patched successfully')
+content = open(b.__file__).read()
+
+if 'inspect.isclass(param.annotation)' not in content:
+    # Only patch the specific line, preserving indentation
+    content = content.replace(
+        'if issubclass(param.annotation, Context):',
+        'if inspect.isclass(param.annotation) and issubclass(param.annotation, Context):'
+    )
+    # Ensure inspect is imported at the top
+    if 'import inspect' not in content:
+        content = 'import inspect\n' + content
+    open(b.__file__, 'w').write(content)
+    print(f'Patched {b.__file__}')
+else:
+    print('Already patched')
