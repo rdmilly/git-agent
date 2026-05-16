@@ -34,6 +34,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY patch_mcp.py /tmp/patch_mcp.py
 RUN python3 /tmp/patch_mcp.py
+COPY patch_mcp.py /tmp/patch_mcp.py
+RUN python3 /tmp/patch_mcp.py
 Runtime image for the git-agent MCP service.  Bundles `git` + `gh` CLI
 # since both are called as subprocesses.  Secrets are NEVER baked in —
 # they're injected via env at container start (see entrypoint.sh).
@@ -66,12 +68,9 @@ RUN git --version && gh --version
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+COPY patch_mcp.py /tmp/patch_mcp.py
+RUN python3 /tmp/patch_mcp.py
 
-RUN python3 -c "
-for line in lines:
-        line = line.replace(
-        )
-"
 
 # --- Application code ---
 COPY app/ ./app/
