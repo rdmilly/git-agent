@@ -66,24 +66,11 @@ RUN git --version && gh --version
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY patch_mcp.py /tmp/patch_mcp.py
-RUN python3 /tmp/patch_mcp.py
 
-# Patch FastMCP issubclass bug (Python 3.12 + MCP 1.12.4 annotation conflict)
 RUN python3 -c "
-import inspect, mcp.server.fastmcp.tools.base as b
-lines = open(b.__file__).readlines()
-patched = []
 for line in lines:
-    if "issubclass(param.annotation, Context)" in line and "inspect.isclass" not in line:
         line = line.replace(
-            "issubclass(param.annotation, Context)",
-            "inspect.isclass(param.annotation) and issubclass(param.annotation, Context)"
         )
-        patched.append("import inspect\n")
-    patched.append(line)
-open(b.__file__, "w").writelines(patched)
-print("FastMCP patched")
 "
 
 # --- Application code ---
