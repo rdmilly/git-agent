@@ -24,6 +24,8 @@ import os
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
+import urllib.request
+import urllib.error
 from typing import Optional
 
 from fastapi import FastAPI
@@ -46,9 +48,10 @@ from app.services import (
     GitOpsError,
     Haiku,
     HaikuError,
+    write_scaffold,
 )
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -64,6 +67,9 @@ GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 AUTO_MERGE_DEFAULT = os.environ.get("GIT_AGENT_AUTO_MERGE", "true").lower() == "true"
+PROVISIONER_API_URL = os.environ.get(
+    "PROVISIONER_API_URL", "http://72.60.225.81:9087"
+)
 
 _git_ops: Optional[GitOps] = None
 _github_api: Optional[GitHubAPI] = None
@@ -269,12 +275,118 @@ async def rest_git_init_repo(req: InitRepoRequest) -> InitRepoResponse:
     )
 
 
+async def _handle_new_project(req: NewProjectRequest) -> NewProjectResponse:
+    """Create repo, scaffold files, commit scaffold, register in projects-manifest."""
+    assert _git_ops is not None and _github_api is not None and _haiku is not None
+
+    # Derive slug: explicit override > req field
+    slug = (req.repo_slug or "").strip()
+    if not slug:
+        # Fallback: derive from kb_path basename without extension
+        slug = re.sub(r"[^a-z0-9-]", "-", req.kb_path.rsplit("/", 1)[-1].rsplit(".", 1)[0].lower()).strip("-") or "new-project"
+
+    full_repo = f"rdmilly/{slug}"
+    description = f"Scaffolded by git-agent from KB path: {req.kb_path}"
+
+    try:
+        # Step 1: Create GitHub repo
+        repo_url = await _github_api.create_repo(
+            name=slug,
+            description=description,
+            private=req.private,
+        )
+        logger.info("Created repo: %s", repo_url)
+
+        # Step 2: Clone
+        local = await _git_ops.ensure_clone(full_repo)
+
+        # Step 3: Write scaffold files
+        files = write_scaffold(
+            repo_path=local,
+            project_name=slug.replace("-", " ").title(),
+            description=description,
+            github_repo=full_repo,
+        )
+        logger.info("Scaffold files written: %s", files)
+
+        # Step 4: Commit scaffold (Haiku generates the message from diff)
+        from app.models import CommitRequest, CommitType
+        commit_req = CommitRequest(
+            repo=full_repo,
+            intent="scaffold new project with README, CI workflow, and PR template",
+            type=CommitType.chore,
+            merge_target="main",
+            session_uri=None,
+            dry_run=False,
+        )
+        commit_resp = await _handle_commit(commit_req)
+        if commit_resp.status == "error":
+            return NewProjectResponse(
+                status="partial",
+                repo_url=repo_url,
+                files_scaffolded=files,
+                error=f"Repo created and scaffolded but commit failed: {commit_resp.error}",
+            )
+
+        # Step 5: Register in Provisioner projects-manifest (cross-host HTTP)
+        import json as _json
+        project_entry = {
+            "id": slug,
+            "label": slug.replace("-", " ").title(),
+            "description": description,
+            "status": "active",
+            "github_repo": full_repo,
+            "vps": "vps1",
+            "local_path": f"/opt/projects/{slug}",
+            "git_sync": True,
+            "url": None,
+            "port": None,
+            "started": None,
+            "prd": req.kb_path,
+        }
+        try:
+            payload = _json.dumps(project_entry).encode()
+            reg_req = urllib.request.Request(
+                f"{PROVISIONER_API_URL}/api/projects/add",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(reg_req, timeout=10) as resp:
+                reg_result = _json.loads(resp.read())
+            logger.info("projects-manifest registration: %s", reg_result)
+        except Exception as e:
+            logger.warning("projects-manifest registration failed (non-fatal): %s", e)
+            reg_result = {"status": "skipped", "error": str(e)}
+
+        return NewProjectResponse(
+            status="success",
+            repo_url=repo_url,
+            dashboard_url=commit_resp.pr_url,
+            files_scaffolded=files,
+        )
+
+    except GitHubError as e:
+        return NewProjectResponse(
+            status="error",
+            error=f"GitHub API failed: {e}",
+        )
+    except GitOpsError as e:
+        return NewProjectResponse(
+            status="error",
+            error=f"Git operation failed: {e}",
+        )
+    except Exception as e:
+        logger.exception("Unexpected failure in git_new_project")
+        return NewProjectResponse(
+            status="error",
+            error=f"Unexpected error: {type(e).__name__}: {e}",
+        )
+
+
 @app.post("/git_new_project", response_model=NewProjectResponse)
 async def rest_git_new_project(req: NewProjectRequest) -> NewProjectResponse:
-    return NewProjectResponse(
-        status="not_implemented",
-        error="git_new_project is a Phase 1.5 stub. Commit pipeline ships first; scaffolding next.",
-    )
+    return await _handle_new_project(req)
 
 
 # --- MCP tool surface (same handlers, MCP-decorated) -------------------------
@@ -354,7 +466,7 @@ async def git_new_project(
     """
     import json
     req = NewProjectRequest(kb_path=kb_path, repo_slug=repo_slug or None, private=private)
-    resp = await rest_git_new_project(req)
+    resp = await _handle_new_project(req)
     return json.dumps(resp.model_dump(exclude_none=False), indent=2)
 
 
